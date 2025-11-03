@@ -66,7 +66,7 @@ class NmapRunner:
 
     def _run(self, args: Sequence[str]) -> subprocess.CompletedProcess:
         command = ["nmap", *args]
-        logger.debug("Ejecutando: %s", " ".join(shlex.quote(part) for part in command))
+        logger.info("Nmap cmd: %s", " ".join(shlex.quote(part) for part in command))
         result = subprocess.run(
             command,
             stdout=subprocess.PIPE,
