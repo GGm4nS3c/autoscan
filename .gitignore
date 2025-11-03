@@ -1,0 +1,55 @@
+# Bytecode / caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# Entornos y dependencias
+.venv/
+venv/
+.env
+.env.*
+.venv.*
+pip-wheel-metadata/
+__pypackages__/
+site/
+.eggs/
+*.egg-info/
+dist/
+build/
+
+# Cobertura / pruebas
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+nosetests.xml
+pytestdebug.log
+
+# Notebooks / caches
+.ipynb_checkpoints/
+
+# IDE / OS
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Seguridad / llaves (nunca subas secretos)
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+*.jks
+*.keystore
+
+# Otros
+.cache/
