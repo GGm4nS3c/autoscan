@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 from typing import List, Sequence
@@ -16,6 +17,8 @@ from .utils import (
     load_targets_from_file,
     setup_interrupt_handling,
 )
+
+logger = logging.getLogger("autoscan.cli")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -146,6 +149,16 @@ def _gather_targets(host: str | None, list_path: str | None) -> Sequence[str]:
     return [t for t in targets if t]
 
 
+def _confirm_stop() -> bool:
+    try:
+        answer = input("[?] Desea detener el escaneo? [y/N]: ").strip().lower()
+    except EOFError:
+        return True
+    except KeyboardInterrupt:
+        return True
+    return answer in {"y", "yes", "s", "si"}
+
+
 def run_scan(args: argparse.Namespace) -> int:
     configure_logging(args.log_level)
 
@@ -180,12 +193,23 @@ def run_scan(args: argparse.Namespace) -> int:
         stop_event=stop_event,
     )
 
-    manager = AutoscanManager(config)
-    try:
-        manager.run()
-    except Exception as exc:  # pragma: no cover - defensive
-        print(f"[!] Error inesperado: {format_exception(exc)}", file=sys.stderr)
-        return 1
+    while True:
+        manager = AutoscanManager(config)
+        try:
+            manager.run()
+            break
+        except KeyboardInterrupt:
+            if config.stop_event is None:
+                print("\n[!] Interrupcion recibida. Finalizando.", file=sys.stderr)
+                return 1
+            if _confirm_stop():
+                logger.info("Escaneo detenido a peticion del usuario.")
+                break
+            logger.info("Continuando escaneo tras la interrupcion.")
+            config.stop_event.clear()
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"[!] Error inesperado: {format_exception(exc)}", file=sys.stderr)
+            return 1
 
     return 0
 

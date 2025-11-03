@@ -103,20 +103,9 @@ def _signal_handler(signum, frame):  # type: ignore[override]
             print("\n[!] Interrupcion repetida. Finalizando inmediatamente.", file=sys.stderr)
             raise KeyboardInterrupt
 
-        try:
-            answer = input("\n[?] Desea detener el escaneo? [y/N]: ").strip().lower()
-        except EOFError:
-            answer = "y"
-        except KeyboardInterrupt:
-            print("\n[!] Interrupcion confirmada. Deteniendo el escaneo.", file=sys.stderr)
-            _INTERRUPT_EVENT.set()
-            return
-
-        if answer in {"y", "yes", "s", "si"}:
-            print("[!] Se detendra el escaneo tras finalizar tareas en curso.", file=sys.stderr)
-            _INTERRUPT_EVENT.set()
-        else:
-            print("[*] Continuando...", file=sys.stderr)
+        _INTERRUPT_EVENT.set()
+        print("\n[!] Interrupcion solicitada. Esperando confirmacion...", file=sys.stderr)
+        raise KeyboardInterrupt
 
 
 def setup_interrupt_handling() -> Event:
@@ -124,6 +113,9 @@ def setup_interrupt_handling() -> Event:
     if _INTERRUPT_EVENT is None:
         _INTERRUPT_EVENT = Event()
         signal.signal(signal.SIGINT, _signal_handler)
+        siginterrupt = getattr(signal, "siginterrupt", None)
+        if siginterrupt:
+            siginterrupt(signal.SIGINT, False)
     return _INTERRUPT_EVENT
 
 

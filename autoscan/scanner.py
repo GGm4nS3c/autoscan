@@ -166,14 +166,20 @@ class AutoscanManager:
             logger.info("[%s] Servicios detectados: ninguno", target)
 
     def _apply_firewall_heuristic(self, target: str, ports: List[int]) -> List[int]:
-        firewall_ports = {21, 554, 1723}
-        if firewall_ports.issubset(set(ports)):
-            logger.info(
-                "[%s] Patron de firewall detectado (puertos 21, 554, 1723). Se descartaran de la fase de servicios.",
-                target,
-            )
-            filtered = [port for port in ports if port not in firewall_ports]
-            if not filtered:
-                logger.info("[%s] Solo quedaron puertos filtrados; no se ejecutara escaneo de servicios.", target)
-            return filtered
+        firewall_patterns = [
+            {21, 53, 554, 1723},
+            {21, 554, 1723},
+        ]
+        port_set = set(ports)
+        for pattern in firewall_patterns:
+            if pattern.issubset(port_set):
+                logger.info(
+                    "[%s] Patron de firewall detectado (puertos %s). Se descartaran de la fase de servicios.",
+                    target,
+                    ", ".join(str(p) for p in sorted(pattern)),
+                )
+                filtered = [port for port in ports if port not in pattern]
+                if not filtered:
+                    logger.info("[%s] Solo quedaron puertos filtrados; no se ejecutara escaneo de servicios.", target)
+                return filtered
         return ports
