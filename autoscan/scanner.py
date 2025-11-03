@@ -73,6 +73,7 @@ class AutoscanManager:
                 return
 
             open_ports = self._run_initial_scan(target)
+            open_ports = self._apply_firewall_heuristic(target, open_ports)
             if not open_ports:
                 logger.info("[%s] Sin puertos abiertos detectados.", target)
                 self.database.replace_ports(host_id, [])
@@ -164,3 +165,15 @@ class AutoscanManager:
         else:
             logger.info("[%s] Servicios detectados: ninguno", target)
 
+    def _apply_firewall_heuristic(self, target: str, ports: List[int]) -> List[int]:
+        firewall_ports = {21, 554, 1723}
+        if firewall_ports.issubset(set(ports)):
+            logger.info(
+                "[%s] Patron de firewall detectado (puertos 21, 554, 1723). Se descartaran de la fase de servicios.",
+                target,
+            )
+            filtered = [port for port in ports if port not in firewall_ports]
+            if not filtered:
+                logger.info("[%s] Solo quedaron puertos filtrados; no se ejecutara escaneo de servicios.", target)
+            return filtered
+        return ports

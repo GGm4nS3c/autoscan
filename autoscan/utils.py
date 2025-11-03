@@ -100,16 +100,20 @@ def _signal_handler(signum, frame):  # type: ignore[override]
     assert _INTERRUPT_EVENT is not None  # configurado en setup_interrupt_handling
     with _INTERRUPT_LOCK:
         if _INTERRUPT_EVENT.is_set():
-            print("\n[!] Interrupción repetida. Finalizando inmediatamente.", file=sys.stderr)
+            print("\n[!] Interrupcion repetida. Finalizando inmediatamente.", file=sys.stderr)
             raise KeyboardInterrupt
 
         try:
-            answer = input("\n[?] ¿Desea detener el escaneo? [y/N]: ").strip().lower()
+            answer = input("\n[?] Desea detener el escaneo? [y/N]: ").strip().lower()
         except EOFError:
             answer = "y"
+        except KeyboardInterrupt:
+            print("\n[!] Interrupcion confirmada. Deteniendo el escaneo.", file=sys.stderr)
+            _INTERRUPT_EVENT.set()
+            return
 
         if answer in {"y", "yes", "s", "si"}:
-            print("[!] Se detendrá el escaneo tras finalizar tareas en curso.", file=sys.stderr)
+            print("[!] Se detendra el escaneo tras finalizar tareas en curso.", file=sys.stderr)
             _INTERRUPT_EVENT.set()
         else:
             print("[*] Continuando...", file=sys.stderr)

@@ -183,7 +183,15 @@ class NmapRunner:
 
         args.append(target)
 
-        self._run(args)
+        try:
+            self._run(args)
+        except subprocess.CalledProcessError as exc:
+            if "-O" in args and self._is_privilege_error(exc.stderr):
+                logger.warning("Sin privilegios para deteccion de OS. Reintentando sin '-O'.")
+                fallback_args = [part for part in args if part != "-O"]
+                self._run(fallback_args)
+            else:
+                raise
         ports_info, metadata = parse_service_scan(outputs.xml_path)
         return ports_info, metadata, outputs
 
@@ -218,3 +226,10 @@ class NmapRunner:
             "low": "1.0",
         }
         return mapping.get(level, "8.0")
+
+    @staticmethod
+    def _is_privilege_error(stderr: Optional[str]) -> bool:
+        if not stderr:
+            return False
+        lowered = stderr.lower()
+        return "requires root privileges" in lowered or "privileges are required" in lowered

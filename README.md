@@ -42,7 +42,7 @@ Opciones principales:
 
 Al presionar `Ctrl+C` el programa pregunta si debe detener el escaneo; al confirmar, finaliza los trabajos en curso y marca el resto como pendientes.
 
-Cada host completado muestra un resumen con sistema operativo estimado y los servicios detectados junto a sus versiones.
+Cada host completado muestra un resumen con sistema operativo estimado y los servicios detectados junto a sus versiones. Si se detecta el patron de puertos 21, 554 y 1723 simultaneamente, se asume la presencia de un firewall y esos puertos se omiten de la fase detallada (quedando reflejado en el log).
 
 ## Exportacion de resultados
 
