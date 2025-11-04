@@ -74,18 +74,21 @@ class AutoscanManager:
 
             open_ports = self._run_initial_scan(target)
             open_ports = self._apply_firewall_heuristic(target, open_ports)
+            open_ports, top_ports_hint = self._prepare_service_plan(target, open_ports)
             if not open_ports:
-                logger.info("[%s] Sin puertos abiertos detectados.", target)
-                self.database.replace_ports(host_id, [])
-                self.database.mark_host_done(host_id, success=True)
-                self._log_host_summary(target, metadata, [])
-                return
+                if top_ports_hint is None:
+                    logger.info("[%s] Sin puertos abiertos detectados.", target)
+                    self.database.replace_ports(host_id, [])
+                    self.database.mark_host_done(host_id, success=True)
+                    self._log_host_summary(target, metadata, [])
+                    return
+                else:
+                    logger.info("[%s] Sin puertos concretos tras heuristicas; se usara top-%d en el escaneo de servicios.", target, top_ports_hint)
 
             if self._should_stop():
                 logger.info("Cancelacion antes de servicio profundo en %s", target)
                 return
-
-            ports_info, metadata = self._run_service_scan(target, open_ports, host_id)
+            ports_info, metadata = self._run_service_scan(target, open_ports, host_id, top_ports_hint)
 
             self.database.replace_ports(host_id, ports_info)
             self.database.mark_host_done(host_id, success=True)
@@ -99,7 +102,19 @@ class AutoscanManager:
         logger.info("[%s] Iniciando escaneo de puertos completos.", target)
         open_ports, outputs = self.nmap.initial_scan(target)
         try:
-            logger.info("[%s] Puertos abiertos: %s", target, ", ".join(map(str, open_ports)) or "ninguno")
+            if open_ports:
+                if len(open_ports) > 50:
+                    preview = ", ".join(str(p) for p in open_ports[:50])
+                    logger.info(
+                        "[%s] Puertos abiertos: %s, ... (+%d adicionales)",
+                        target,
+                        preview,
+                        len(open_ports) - 50,
+                    )
+                else:
+                    logger.info("[%s] Puertos abiertos: %s", target, ", ".join(map(str, open_ports)))
+            else:
+                logger.info("[%s] Puertos abiertos: ninguno", target)
             return open_ports
         finally:
             if self.config.report_base is None:
@@ -110,9 +125,16 @@ class AutoscanManager:
         target: str,
         ports: List[int],
         host_id: int,
+        top_ports_hint: Optional[int],
     ) -> tuple[List[PortRecord], Optional[HostMetadata]]:
+        if top_ports_hint is not None:
+            logger.warning(
+                "[%s] Se ejecutara escaneo detallado usando --top-ports %d debido a deteccion de puertos consecutivos.",
+                target,
+                top_ports_hint,
+            )
         logger.info("[%s] Escaneo detallado (servicios/vulnerabilidades).", target)
-        ports_info, metadata, outputs = self.nmap.service_scan(target, ports)
+        ports_info, metadata, outputs = self.nmap.service_scan(target, ports, top_ports_hint)
         try:
             if metadata:
                 self.database.store_host_metadata(host_id, metadata)
@@ -183,3 +205,15 @@ class AutoscanManager:
                     logger.info("[%s] Solo quedaron puertos filtrados; no se ejecutara escaneo de servicios.", target)
                 return filtered
         return ports
+
+    def _prepare_service_plan(self, target: str, ports: List[int]) -> tuple[List[int], Optional[int]]:
+        consecutives = set(range(1, 21))
+        if consecutives.issubset(set(ports)):
+            sample = ", ".join(str(p) for p in sorted(consecutives))
+            logger.warning(
+                "[%s] Se detecto un bloque consecutivo de puertos bajos abiertos (%s). Se usara fallback a top-ports 50.",
+                target,
+                sample,
+            )
+            return [], 50
+        return ports, None

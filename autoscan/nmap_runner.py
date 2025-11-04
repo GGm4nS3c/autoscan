@@ -147,24 +147,34 @@ class NmapRunner:
         open_ports = extract_open_ports(outputs.xml_path)
         return open_ports, outputs
 
-    def service_scan(self, target: str, ports: Iterable[int]) -> tuple[List[PortRecord], Optional[HostMetadata], ScanOutputs]:
+    def service_scan(
+        self,
+        target: str,
+        ports: Iterable[int],
+        top_ports: Optional[int] = None,
+    ) -> tuple[List[PortRecord], Optional[HostMetadata], ScanOutputs]:
         safe = sanitize_filename(target)
         outputs = _create_output_paths(
             self._stage_base_dir(target, "service") if self.report_dir else None,
             f"{safe}_service",
         )
-        port_arg = ",".join(str(p) for p in sorted(set(ports)))
         args: List[str] = [
             "-sV",
             "-O",
             "-n",
-            "-p",
-            port_arg,
             "-oA",
             str(outputs.base_path),
             *self._base_timing_args(),
             "-Pn",
         ]
+        if top_ports is not None:
+            args.extend(["--top-ports", str(top_ports)])
+        else:
+            port_list = sorted(set(ports))
+            if not port_list:
+                raise ValueError("Se requiere al menos un puerto para escanear.")
+            port_arg = ",".join(str(p) for p in port_list)
+            args.extend(["-p", port_arg])
 
         scripts: List[str] = []
         script_args: List[str] = []
