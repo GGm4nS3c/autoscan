@@ -180,7 +180,7 @@ class NmapRunner:
         script_args: List[str] = []
 
         if self.include_default_scripts:
-            scripts.extend(["default", "vuln"])
+            scripts.extend(["default and not dos", "vuln and not dos"])
 
         if self.vulners_level:
             scripts.append("vulners")

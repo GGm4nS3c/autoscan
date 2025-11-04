@@ -32,7 +32,7 @@ Opciones principales:
 
 - `-H/--host`: Hostname o IP (opcional si se usa `-lh`).
 - `-lh/--list-hosts`: Archivo con una lista de hosts/IP.
-- `--vul [high|medium|low]`: Activa scripts `vulners` con umbral CVSS (por defecto `high`).
+- `--vul [high|medium|low]`: Activa scripts `vulners` con umbral CVSS (por defecto `high`). Los scripts `default` y `vuln` se ejecutan con la exclusión de la categoría `dos` para evitar chequeos potencialmente disruptivos.
 - `--slow` / `--fast`: Ajustan el perfil de velocidad (`-T2` / `-T5`).
 - `-w/--workers`: Numero de hosts concurrentes.
 - `--report [ruta]`: Genera jerarquia de reportes `-oA`. Si no se indica ruta, se usa el nombre del host o del archivo de lista.
