@@ -31,7 +31,7 @@ pipenv run python -m autoscan scan -H 192.168.1.10 --vul high --report
 Opciones principales:
 
 - `-H/--host`: Hostname o IP (opcional si se usa `-lh`).
-- `-lh/--list-hosts`: Archivo con una lista de hosts/IP.
+- `-lh/--list-hosts`: Archivo con una lista de hosts/IP (las entradas duplicadas se eliminan automáticamente).
 - `--vul [high|medium|low]`: Activa scripts `vulners` con umbral CVSS (por defecto `high`). Los scripts `default` y `vuln` se ejecutan con la exclusión de la categoría `dos` para evitar chequeos potencialmente disruptivos.
 - `--slow` / `--fast`: Ajustan el perfil de velocidad (`-T2` / `-T5`).
 - `-w/--workers`: Numero de hosts concurrentes.

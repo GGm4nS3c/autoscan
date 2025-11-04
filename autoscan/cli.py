@@ -142,11 +142,18 @@ def _choose_speed_profile(slow: bool, fast: bool) -> SpeedProfile:
 
 def _gather_targets(host: str | None, list_path: str | None) -> Sequence[str]:
     targets: List[str] = []
+    seen = set()
     if host:
-        targets.append(host.strip())
+        clean = host.strip()
+        if clean:
+            targets.append(clean)
+            seen.add(clean)
     if list_path:
-        targets.extend(load_targets_from_file(Path(list_path)))
-    return [t for t in targets if t]
+        for entry in load_targets_from_file(Path(list_path)):
+            if entry not in seen:
+                targets.append(entry)
+                seen.add(entry)
+    return targets
 
 
 def _confirm_stop() -> bool:
