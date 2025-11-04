@@ -207,13 +207,24 @@ class AutoscanManager:
         return ports
 
     def _prepare_service_plan(self, target: str, ports: List[int]) -> tuple[List[int], Optional[int]]:
+        TOP_PORT_FALLBACK = 50
+        if len(ports) >= 1000:
+            logger.warning(
+                "[%s] Se detectaron %d puertos abiertos. Posible respuesta defensiva; se usara fallback a top-ports %d.",
+                target,
+                len(ports),
+                TOP_PORT_FALLBACK,
+            )
+            return [], TOP_PORT_FALLBACK
+
         consecutives = set(range(1, 21))
         if consecutives.issubset(set(ports)):
             sample = ", ".join(str(p) for p in sorted(consecutives))
             logger.warning(
-                "[%s] Se detecto un bloque consecutivo de puertos bajos abiertos (%s). Se usara fallback a top-ports 50.",
+                "[%s] Se detecto un bloque consecutivo de puertos bajos abiertos (%s). Se usara fallback a top-ports %d.",
                 target,
                 sample,
+                TOP_PORT_FALLBACK,
             )
-            return [], 50
+            return [], TOP_PORT_FALLBACK
         return ports, None

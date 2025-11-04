@@ -42,7 +42,7 @@ Opciones principales:
 
 Al presionar `Ctrl+C` el programa pregunta si debe detener el escaneo; al confirmar, finaliza los trabajos en curso y marca el resto como pendientes.
 
-Cada host completado muestra un resumen con sistema operativo estimado y los servicios detectados junto a sus versiones. Si se detecta el patron de puertos 21, 554 y 1723 (con o sin el 53 adicional) simultaneamente, se asume la presencia de un firewall y esos puertos se omiten de la fase detallada. Cuando los puertos 1-20 aparecen todos como abiertos se considera un falso positivo y la fase profunda se limita a `--top-ports 50`; ambos casos quedan reflejados en el log.
+Cada host completado muestra un resumen con sistema operativo estimado y los servicios detectados junto a sus versiones. Si se detecta el patron de puertos 21, 554 y 1723 (con o sin el 53 adicional) simultaneamente, se asume la presencia de un firewall y esos puertos se omiten de la fase detallada. Cuando se observan patrones anómalos (los puertos 1-20 abiertos en bloque o más de 1.000 puertos reportados como abiertos) se considera un falso positivo y la fase profunda se limita a `--top-ports 50`; todos estos casos quedan reflejados en el log.
 
 ## Exportacion de resultados
 
