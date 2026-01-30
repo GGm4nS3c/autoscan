@@ -1,0 +1,14 @@
+[scan]
+workers = 4
+resume = true
+use_ping = true
+report_dir = "reports"
+log_file = "run.log"
+scan_type = "tcp"
+log_level = "info"
+vul_level = "high"
+
+[scan.speed]
+timing_template = 3
+min_rate = 1000
+max_retries = 4

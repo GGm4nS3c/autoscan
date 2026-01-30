@@ -6,7 +6,8 @@ with resume-aware orchestration, SQLite persistence and reporting
 capabilities.
 """
 
-from .cli import main
+__version__ = "1.0.0"
 
-__all__ = ["main"]
+from .cli import main  # noqa: E402
 
+__all__ = ["main", "__version__"]

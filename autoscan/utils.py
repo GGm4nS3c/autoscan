@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from threading import Event, Lock
 from typing import Iterable, List, Optional
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 DEFAULT_DB_PATH = Path("autoscan.db")
 
@@ -39,21 +41,30 @@ class _ColorFormatter(logging.Formatter):
         return super().format(record)
 
 
-def configure_logging(level: str = "info") -> None:
+def configure_logging(level: str = "info", log_file: Optional[Path] = None) -> None:
     numeric_level = getattr(logging, level.upper(), logging.INFO)
     logger = logging.getLogger()
     logger.setLevel(numeric_level)
     for handler in list(logger.handlers):
         logger.removeHandler(handler)
 
-    handler = logging.StreamHandler()
-    formatter = _ColorFormatter(
+    console_handler = logging.StreamHandler()
+    console_formatter = _ColorFormatter(
         fmt="[%(asctime)s] [%(levelname)s] %(message)s",
         datefmt="%H:%M:%S",
-        use_color=handler.stream.isatty(),
+        use_color=console_handler.stream.isatty(),
     )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+
+    if log_file:
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_formatter = logging.Formatter(
+            fmt="[%(asctime)s] [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
 
 
 def sanitize_filename(value: str) -> str:
@@ -121,3 +132,50 @@ def setup_interrupt_handling() -> Event:
 
 def format_exception(exc: BaseException) -> str:
     return f"{exc.__class__.__name__}: {exc}"
+
+
+def print_banner(path: Optional[Path] = None) -> None:
+    if not sys.stdout.isatty():
+        return
+
+    candidates = []
+    if path is not None:
+        candidates.append(path)
+    candidates.extend(
+        [
+            Path("banner.ans"),
+            Path("src") / "banner.ans",
+            Path(__file__).resolve().parents[1] / "src" / "banner.ans",
+        ]
+    )
+
+    banner_path = next((candidate for candidate in candidates if candidate.exists()), None)
+    if banner_path is None:
+        return
+
+    try:
+        data = banner_path.read_bytes()
+    except OSError:
+        return
+
+    if not data:
+        return
+
+    sys.stdout.buffer.write(data)
+    if not data.endswith(b"\n"):
+        sys.stdout.buffer.write(b"\n")
+
+
+def check_vulners_api(timeout: int = 5) -> tuple[bool, str]:
+    url = "https://vulners.com/api/v3/search/lucene/"
+    request = Request(url, method="GET")
+    try:
+        with urlopen(request, timeout=timeout) as response:  # nosec B310
+            return True, f"HTTP {response.status}"
+    except HTTPError as exc:
+        return True, f"HTTP {exc.code}"
+    except URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        return False, str(reason)
+    except Exception as exc:  # pragma: no cover - defensivo
+        return False, str(exc)

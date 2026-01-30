@@ -207,8 +207,15 @@ class DatabaseManager:
                 pending.append(target)
         return pending
 
-    def fetch_export_rows(self) -> List[sqlite3.Row]:
-        query = """
+    def fetch_export_rows(self, targets: Optional[Sequence[str]] = None) -> List[sqlite3.Row]:
+        where_clause = ""
+        params: List[str] = []
+        if targets:
+            placeholders = ",".join("?" for _ in targets)
+            where_clause = f"WHERE h.target IN ({placeholders})"
+            params = list(targets)
+
+        query = f"""
         SELECT
             h.target AS host,
             h.os_name,
@@ -231,9 +238,9 @@ class DatabaseManager:
         FROM hosts h
         LEFT JOIN ports p ON p.host_id = h.id
         LEFT JOIN vulnerabilities v ON v.port_id = p.id
+        {where_clause}
         ORDER BY h.target, p.port
         """
         with self._transaction() as cur:
-            cur.execute(query)
+            cur.execute(query, params)
             return cur.fetchall()
-

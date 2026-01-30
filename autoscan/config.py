@@ -26,6 +26,7 @@ class ScanConfig:
     force_rescan: bool
     slow_mode: bool
     fast_mode: bool
+    scan_type: str = "tcp"
     include_default_scripts: bool = True
     stop_event: Optional[Event] = None  # resolved at runtime
 
@@ -35,3 +36,6 @@ class ExportConfig:
     db_path: Path
     output_path: Path
     fmt: str
+    no_vul: bool = False
+    mode: str = "full"
+    hosts: Optional[Sequence[str]] = None

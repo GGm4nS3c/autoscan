@@ -13,7 +13,7 @@ from .db import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
-HEADERS = [
+FULL_HEADERS = [
     "host",
     "alive",
     "os_name",
@@ -34,29 +34,60 @@ HEADERS = [
     "summary",
 ]
 
+NOVUL_HEADERS = [
+    "host",
+    "alive",
+    "os_name",
+    "os_vendor",
+    "os_accuracy",
+    "port",
+    "protocol",
+    "state",
+    "service",
+    "product",
+    "version",
+    "banner",
+]
+
+MIN_HEADERS = [
+    "host",
+    "os_vendor",
+    "port",
+    "protocol",
+    "product",
+    "banner",
+]
+
 
 def export_results(config: ExportConfig) -> None:
     db = DatabaseManager(config.db_path)
-    rows = db.fetch_export_rows()
+    rows = db.fetch_export_rows(config.hosts)
     db.close()
 
-    dataset = [_row_to_dict(row) for row in rows]
+    if config.mode == "min":
+        headers = MIN_HEADERS
+    elif config.no_vul:
+        headers = NOVUL_HEADERS
+    else:
+        headers = FULL_HEADERS
+    dataset = [_row_to_dict(row, headers) for row in rows]
     output = config.output_path
     output.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("Columnas exportadas: %s", ", ".join(headers))
 
     if config.fmt == "csv":
-        _write_csv(output, dataset)
+        _write_csv(output, dataset, headers)
     elif config.fmt == "json":
         _write_json(output, dataset)
     elif config.fmt == "xlsx":
-        _write_xlsx(output, dataset)
+        _write_xlsx(output, dataset, headers)
     else:  # pragma: no cover - validaciones previas
         raise ValueError(f"Formato no soportado: {config.fmt}")
 
     logger.info("Reporte exportado en %s (%s filas).", output, len(dataset))
 
 
-def _row_to_dict(row) -> Dict[str, str]:
+def _row_to_dict(row, headers: List[str]) -> Dict[str, str]:
     def _bool_to_str(value):
         if value is None:
             return ""
@@ -67,7 +98,7 @@ def _row_to_dict(row) -> Dict[str, str]:
             return ""
         return str(value)
 
-    return {
+    full = {
         "host": _format(row["host"]),
         "alive": _bool_to_str(row["alive"]),
         "os_name": _format(row["os_name"]),
@@ -87,11 +118,12 @@ def _row_to_dict(row) -> Dict[str, str]:
         "url": _format(row["url"]),
         "summary": _format(row["summary"]),
     }
+    return {key: full.get(key, "") for key in headers}
 
 
-def _write_csv(path: Path, rows: Iterable[Dict[str, str]]) -> None:
+def _write_csv(path: Path, rows: Iterable[Dict[str, str]], headers: List[str]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handler:
-        writer = csv.DictWriter(handler, fieldnames=HEADERS)
+        writer = csv.DictWriter(handler, fieldnames=headers)
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
@@ -102,7 +134,7 @@ def _write_json(path: Path, rows: Iterable[Dict[str, str]]) -> None:
         json.dump(list(rows), handler, ensure_ascii=False, indent=2)
 
 
-def _write_xlsx(path: Path, rows: List[Dict[str, str]]) -> None:
+def _write_xlsx(path: Path, rows: List[Dict[str, str]], headers: List[str]) -> None:
     content_types = """<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
     <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -173,7 +205,7 @@ def _write_xlsx(path: Path, rows: List[Dict[str, str]]) -> None:
 </Properties>
 """
 
-    sheet_xml = _build_sheet_xml(rows)
+    sheet_xml = _build_sheet_xml(rows, headers)
 
     with ZipFile(path, "w", ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", content_types)
@@ -186,7 +218,7 @@ def _write_xlsx(path: Path, rows: List[Dict[str, str]]) -> None:
         archive.writestr("docProps/app.xml", app)
 
 
-def _build_sheet_xml(rows: List[Dict[str, str]]) -> str:
+def _build_sheet_xml(rows: List[Dict[str, str]], headers: List[str]) -> str:
     def column_letter(index: int) -> str:
         result = ""
         while index:
@@ -205,7 +237,7 @@ def _build_sheet_xml(rows: List[Dict[str, str]]) -> str:
     rows_xml = []
 
     header_cells = []
-    for idx, header in enumerate(HEADERS, start=1):
+    for idx, header in enumerate(headers, start=1):
         cell_ref = f"{column_letter(idx)}1"
         header_cells.append(
             f'<c r="{cell_ref}" t="inlineStr"><is><t>{escape(header)}</t></is></c>'
@@ -214,7 +246,7 @@ def _build_sheet_xml(rows: List[Dict[str, str]]) -> str:
 
     for row_index, row in enumerate(rows, start=2):
         cells = []
-        for col_index, header in enumerate(HEADERS, start=1):
+        for col_index, header in enumerate(headers, start=1):
             value = row.get(header, "") or ""
             cell_ref = f"{column_letter(col_index)}{row_index}"
             cells.append(
@@ -231,4 +263,3 @@ def _build_sheet_xml(rows: List[Dict[str, str]]) -> str:
         "</worksheet>"
     )
     return sheet
-

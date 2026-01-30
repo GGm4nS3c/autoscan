@@ -72,23 +72,55 @@ class AutoscanManager:
                 logger.info("Cancelacion tras verificacion de %s", target)
                 return
 
-            open_ports = self._run_initial_scan(target)
-            open_ports = self._apply_firewall_heuristic(target, open_ports)
-            open_ports, top_ports_hint = self._prepare_service_plan(target, open_ports)
-            if not open_ports:
-                if top_ports_hint is None:
+            if self.config.scan_type == "full":
+                tcp_ports, tcp_hint = self._prepare_ports(target, scan_type="tcp")
+                udp_ports, udp_hint = self._prepare_ports(target, scan_type="udp")
+
+                if not tcp_ports and not udp_ports and tcp_hint is None and udp_hint is None:
                     logger.info("[%s] Sin puertos abiertos detectados.", target)
                     self.database.replace_ports(host_id, [])
                     self.database.mark_host_done(host_id, success=True)
                     self._log_host_summary(target, metadata, [])
                     return
-                else:
-                    logger.info("[%s] Sin puertos concretos tras heuristicas; se usara top-%d en el escaneo de servicios.", target, top_ports_hint)
 
-            if self._should_stop():
-                logger.info("Cancelacion antes de servicio profundo en %s", target)
-                return
-            ports_info, metadata = self._run_service_scan(target, open_ports, host_id, top_ports_hint)
+                if self._should_stop():
+                    logger.info("Cancelacion antes de servicio profundo en %s", target)
+                    return
+
+                ports_info, metadata = self._run_service_scan_full(
+                    target,
+                    host_id,
+                    tcp_ports,
+                    tcp_hint,
+                    udp_ports,
+                    udp_hint,
+                )
+            else:
+                open_ports, top_ports_hint = self._prepare_ports(target, scan_type=self.config.scan_type)
+                if not open_ports and top_ports_hint is None:
+                    logger.info("[%s] Sin puertos abiertos detectados.", target)
+                    self.database.replace_ports(host_id, [])
+                    self.database.mark_host_done(host_id, success=True)
+                    self._log_host_summary(target, metadata, [])
+                    return
+                if not open_ports and top_ports_hint is not None:
+                    logger.info(
+                        "[%s] Sin puertos concretos tras heuristicas; se usara top-%d en el escaneo de servicios.",
+                        target,
+                        top_ports_hint,
+                    )
+
+                if self._should_stop():
+                    logger.info("Cancelacion antes de servicio profundo en %s", target)
+                    return
+
+                ports_info, metadata = self._run_service_scan(
+                    target,
+                    open_ports,
+                    host_id,
+                    top_ports_hint,
+                    self.config.scan_type,
+                )
 
             self.database.replace_ports(host_id, ports_info)
             self.database.mark_host_done(host_id, success=True)
@@ -98,9 +130,9 @@ class AutoscanManager:
             logger.exception("[%s] Fallo el escaneo: %s", target, exc)
             self.database.mark_host_done(host_id, success=False, error=str(exc))
 
-    def _run_initial_scan(self, target: str) -> List[int]:
-        logger.info("[%s] Iniciando escaneo de puertos completos.", target)
-        open_ports, outputs = self.nmap.initial_scan(target)
+    def _run_initial_scan(self, target: str, scan_type: str) -> List[int]:
+        logger.info("[%s] Iniciando escaneo de puertos completos (%s).", target, scan_type)
+        open_ports, outputs = self.nmap.initial_scan(target, scan_type=scan_type)
         try:
             if open_ports:
                 if len(open_ports) > 50:
@@ -126,6 +158,7 @@ class AutoscanManager:
         ports: List[int],
         host_id: int,
         top_ports_hint: Optional[int],
+        scan_type: str,
     ) -> tuple[List[PortRecord], Optional[HostMetadata]]:
         if top_ports_hint is not None:
             logger.warning(
@@ -133,8 +166,8 @@ class AutoscanManager:
                 target,
                 top_ports_hint,
             )
-        logger.info("[%s] Escaneo detallado (servicios/vulnerabilidades).", target)
-        ports_info, metadata, outputs = self.nmap.service_scan(target, ports, top_ports_hint)
+        logger.info("[%s] Escaneo detallado (servicios/vulnerabilidades) %s.", target, scan_type)
+        ports_info, metadata, outputs = self.nmap.service_scan(target, ports, top_ports_hint, scan_type)
         try:
             if metadata:
                 self.database.store_host_metadata(host_id, metadata)
@@ -142,6 +175,30 @@ class AutoscanManager:
         finally:
             if self.config.report_base is None:
                 self.nmap.cleanup_outputs(outputs)
+
+    def _run_service_scan_full(
+        self,
+        target: str,
+        host_id: int,
+        tcp_ports: List[int],
+        tcp_hint: Optional[int],
+        udp_ports: List[int],
+        udp_hint: Optional[int],
+    ) -> tuple[List[PortRecord], Optional[HostMetadata]]:
+        combined: List[PortRecord] = []
+        metadata: Optional[HostMetadata] = None
+
+        if tcp_ports or tcp_hint is not None:
+            ports_info, meta = self._run_service_scan(target, tcp_ports, host_id, tcp_hint, "tcp")
+            combined.extend(ports_info)
+            metadata = meta or metadata
+
+        if udp_ports or udp_hint is not None:
+            ports_info, meta = self._run_service_scan(target, udp_ports, host_id, udp_hint, "udp")
+            combined.extend(ports_info)
+            metadata = meta or metadata
+
+        return combined, metadata
 
     def _should_stop(self) -> bool:
         return self.config.stop_event is not None and self.config.stop_event.is_set()
@@ -228,3 +285,9 @@ class AutoscanManager:
             )
             return [], TOP_PORT_FALLBACK
         return ports, None
+
+    def _prepare_ports(self, target: str, scan_type: str) -> tuple[List[int], Optional[int]]:
+        open_ports = self._run_initial_scan(target, scan_type)
+        if scan_type == "tcp":
+            open_ports = self._apply_firewall_heuristic(target, open_ports)
+        return self._prepare_service_plan(target, open_ports)

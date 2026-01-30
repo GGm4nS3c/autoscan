@@ -31,11 +31,12 @@ def _create_output_paths(base: Optional[Path], prefix: str) -> ScanOutputs:
         base = temp_dir / prefix
     else:
         base.parent.mkdir(parents=True, exist_ok=True)
+    base_str = str(base)
     return ScanOutputs(
         base_path=base,
-        xml_path=base.with_suffix(".xml"),
-        gnmap_path=base.with_suffix(".gnmap"),
-        nmap_path=base.with_suffix(".nmap"),
+        xml_path=Path(f"{base_str}.xml"),
+        gnmap_path=Path(f"{base_str}.gnmap"),
+        nmap_path=Path(f"{base_str}.nmap"),
     )
 
 
@@ -114,7 +115,7 @@ class NmapRunner:
         finally:
             self._cleanup_temp(outputs)
 
-    def initial_scan(self, target: str) -> tuple[List[int], ScanOutputs]:
+    def initial_scan(self, target: str, scan_type: str = "tcp") -> tuple[List[int], ScanOutputs]:
         safe = sanitize_filename(target)
         outputs = _create_output_paths(
             self._stage_base_dir(target, "initial") if self.report_dir else None,
@@ -127,10 +128,13 @@ class NmapRunner:
             str(outputs.base_path),
             *self._base_timing_args(),
         ]
-        if self._syn_scan_supported:
-            args.append("-sS")
+        if scan_type == "udp":
+            args.append("-sU")
         else:
-            args.append("-sT")
+            if self._syn_scan_supported:
+                args.append("-sS")
+            else:
+                args.append("-sT")
         if not self.use_ping:
             args.append("-Pn")
         args.append(target)
@@ -152,6 +156,7 @@ class NmapRunner:
         target: str,
         ports: Iterable[int],
         top_ports: Optional[int] = None,
+        scan_type: str = "tcp",
     ) -> tuple[List[PortRecord], Optional[HostMetadata], ScanOutputs]:
         safe = sanitize_filename(target)
         outputs = _create_output_paths(
@@ -159,7 +164,6 @@ class NmapRunner:
             f"{safe}_service",
         )
         args: List[str] = [
-            "-sV",
             "-O",
             "-n",
             "-oA",
@@ -167,6 +171,10 @@ class NmapRunner:
             *self._base_timing_args(),
             "-Pn",
         ]
+        if scan_type == "udp":
+            args.extend(["-sU", "-sV"])
+        else:
+            args.append("-sV")
         if top_ports is not None:
             args.extend(["--top-ports", str(top_ports)])
         else:

@@ -53,3 +53,12 @@ Thumbs.db
 
 # Otros
 .cache/
+
+# Autoscan outputs
+autoscan.db
+run.log
+reports/
+hosts/
+*.gnmap
+*.nmap
+*.xml
